@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
-from app.deps import get_llm_client
-from app.llm import LLMClient, LLMResult
+import app.main as main
+from app.llm import LLMClient, LLMClientError, LLMResult
 from app.main import app
 
 
@@ -10,8 +10,11 @@ class StubClient(LLMClient):
         return LLMResult(answer=f"echo:{query}", model="ollama:stub")
 
 
+ORIGINAL_RESOLVER = main.resolve_llm_client
+
+
 def test_chat_contract():
-    app.dependency_overrides[get_llm_client] = lambda: StubClient()
+    main.resolve_llm_client = lambda *_args, **_kwargs: StubClient()
     client = TestClient(app)
     response = client.post(
         "/v1/chat",
@@ -24,10 +27,17 @@ def test_chat_contract():
     assert data["model"] == "ollama:stub"
     assert data["retrieval"] == {"top_k": 3, "provider": "none", "hybrid": False}
     assert isinstance(data["latency_ms"], int)
-    app.dependency_overrides.clear()
+    main.resolve_llm_client = ORIGINAL_RESOLVER
 
 
-def test_chat_streaming_not_supported():
+def test_chat_llm_error():
+    class ErrorClient(LLMClient):
+        def chat(self, query: str, session_id=None) -> LLMResult:
+            raise LLMClientError(502, "Ollama unreachable")
+
+    main.resolve_llm_client = lambda *_args, **_kwargs: ErrorClient()
     client = TestClient(app)
-    response = client.post("/v1/chat", json={"query": "hello", "stream": True})
-    assert response.status_code == 400
+    response = client.post("/v1/chat", json={"query": "hello"})
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Ollama unreachable"
+    main.resolve_llm_client = ORIGINAL_RESOLVER

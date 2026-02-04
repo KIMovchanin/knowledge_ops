@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Go test
+        working-directory: services/gateway-go
+        run: go test ./...
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: python -m pip install --upgrade pip poetry
+
+      - name: Python deps
+        working-directory: services/inference-python
+        run: poetry install --no-root
+
+      - name: Python lint
+        working-directory: services/inference-python
+        run: poetry run ruff check . && poetry run black --check .
+
+      - name: Python tests
+        working-directory: services/inference-python
+        run: poetry run pytest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Frontend deps
+        working-directory: services/frontend-web
+        run: npm ci
+
+      - name: Frontend lint
+        working-directory: services/frontend-web
+        run: npm run lint
+
+      - name: Frontend build
+        working-directory: services/frontend-web
+        run: npm run build
+
+      - name: Docker build inference
+        run: docker build -f services/inference-python/Dockerfile services/inference-python
+
+      - name: Docker build gateway
+        run: docker build -f services/gateway-go/Dockerfile services/gateway-go
+
+      - name: Docker build frontend
+        run: docker build -f services/frontend-web/Dockerfile services/frontend-web

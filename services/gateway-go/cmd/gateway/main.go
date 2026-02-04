@@ -91,6 +91,8 @@ func (rl *rateLimiter) Allow(ip string) bool {
 }
 
 func main() {
+	log.SetFlags(0)
+
 	prometheus.MustRegister(requestCount, requestLatency)
 
 	cfg := loadConfig()
@@ -106,7 +108,7 @@ func main() {
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/v1/chat", chatHandler(cfg, ml, client))
 
-	handler := withLogging(mux)
+	handler := withLogging(withCORS(mux))
 
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -231,13 +233,19 @@ func validateJWT(r *http.Request, secret string) error {
 	}
 
 	tokenString := parts[1]
-	_, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method")
 		}
 		return []byte(secret), nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if !token.Valid {
+		return fmt.Errorf("invalid token")
+	}
+	return nil
 }
 
 func withLogging(next http.Handler) http.Handler {
@@ -259,6 +267,21 @@ func withLogging(next http.Handler) http.Handler {
 			"requestId":  recorder.Header().Get("X-Request-Id"),
 			"ip":         clientIP(r),
 		})
+	})
+}
+
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }
 

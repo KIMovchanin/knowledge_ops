@@ -3,12 +3,13 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
-from .deps import get_llm_client
+from .config import get_settings
+from .deps import resolve_llm_client
 from .llm import LLMClient, LLMClientError, LLMResult
 
 APP_VERSION = "0.1.0"
@@ -33,6 +34,9 @@ class ChatRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=100)
     use_rag: bool = True
     stream: bool = False
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    api_key: Optional[str] = None
 
 
 class RetrievalInfo(BaseModel):
@@ -74,12 +78,17 @@ async def metrics():
 
 
 @app.post("/v1/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, llm_client: LLMClient = Depends(get_llm_client)):
-    if request.stream:
-        raise HTTPException(status_code=400, detail="Streaming is not supported in the MVP.")
-
+async def chat(request: ChatRequest):
     retrieval_provider = "qdrant" if request.use_rag else "none"
     retrieval = RetrievalInfo(top_k=request.top_k, provider=retrieval_provider, hybrid=False)
+
+    settings = get_settings()
+    provider = (request.provider or settings.llm_provider).lower()
+    api_key = request.api_key or None
+    try:
+        llm_client: LLMClient = resolve_llm_client(provider, request.model, api_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     start = time.time()
     try:

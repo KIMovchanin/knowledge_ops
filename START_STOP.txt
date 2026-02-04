@@ -1,0 +1,25 @@
+KnowledgeOps MVP: Запуск и остановка
+
+1) Предварительно
+- Установлен Docker Desktop и он запущен.
+- Установлен Ollama и модель llama3.2:3b.
+
+2) Запуск (PowerShell)
+cd D:\JetBrains\PycharmProjects\KnowledgeOps
+Copy-Item .env.example .env
+ollama serve
+
+docker compose -f infra/docker-compose.yml --profile mvp up -d --build
+
+3) Проверка
+curl.exe http://localhost:8080/health
+
+curl.exe -X POST http://localhost:8080/v1/chat -H "Content-Type: application/json" -d "{\"query\":\"hello\"}"
+
+Открыть UI: http://localhost:3000
+
+4) Остановка (сохранить данные)
+docker compose -f infra/docker-compose.yml --profile mvp stop
+
+5) Полная остановка и очистка (с удалением данных)
+docker compose -f infra/docker-compose.yml --profile mvp down -v

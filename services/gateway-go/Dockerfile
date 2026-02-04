@@ -2,6 +2,8 @@ FROM golang:1.22-alpine AS build
 
 WORKDIR /src
 
+ENV GOFLAGS=-mod=mod
+
 COPY go.mod go.sum ./
 RUN go mod download
 
