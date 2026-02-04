@@ -42,6 +42,10 @@ var (
 
 type config struct {
 	InferenceBaseURL string
+	InferenceTimeout time.Duration
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
+	IdleTimeout      time.Duration
 	JWTSecret        string
 	RateLimitRPS     int
 	Port             string
@@ -101,20 +105,22 @@ func main() {
 	}
 
 	ml := newRateLimiter(cfg.RateLimitRPS)
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: cfg.InferenceTimeout}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/v1/chat", chatHandler(cfg, ml, client))
+	mux.HandleFunc("/v1/files/upload", uploadHandler(cfg, ml, client))
 
 	handler := withLogging(withCORS(mux))
 
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 60 * time.Second,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
 	}
 
 	logJSON("info", "gateway started", map[string]any{"port": cfg.Port})
@@ -127,6 +133,10 @@ func main() {
 func loadConfig() config {
 	return config{
 		InferenceBaseURL: envOrDefault("INFERENCE_BASE_URL", "http://inference:8000"),
+		InferenceTimeout: time.Duration(envIntOrDefault("INFERENCE_TIMEOUT_SECONDS", 120)) * time.Second,
+		ReadTimeout:      time.Duration(envIntOrDefault("SERVER_READ_TIMEOUT_SECONDS", 300)) * time.Second,
+		WriteTimeout:     time.Duration(envIntOrDefault("SERVER_WRITE_TIMEOUT_SECONDS", 600)) * time.Second,
+		IdleTimeout:      time.Duration(envIntOrDefault("SERVER_IDLE_TIMEOUT_SECONDS", 120)) * time.Second,
 		JWTSecret:        os.Getenv("JWT_SECRET"),
 		RateLimitRPS:     envIntOrDefault("RATE_LIMIT_RPS", 5),
 		Port:             envOrDefault("PORT", "8080"),
@@ -199,6 +209,76 @@ func chatHandler(cfg config, rl *rateLimiter, client *http.Client) http.HandlerF
 		if requestID != "" {
 			proxyReq.Header.Set("X-Request-Id", requestID)
 		}
+
+		resp, err := client.Do(proxyReq)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{
+				"error": "inference service unreachable",
+			})
+			return
+		}
+		defer resp.Body.Close()
+
+		for key, values := range resp.Header {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+		if requestID != "" {
+			w.Header().Set("X-Request-Id", requestID)
+		}
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	}
+}
+
+func uploadHandler(cfg config, rl *rateLimiter, client *http.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		ip := clientIP(r)
+		if !rl.Allow(ip) {
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{
+				"error": "rate limit exceeded",
+			})
+			return
+		}
+
+		if cfg.JWTSecret != "" {
+			if err := validateJWT(r, cfg.JWTSecret); err != nil {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "unauthorized",
+				})
+				return
+			}
+		}
+
+		requestID := r.Header.Get("X-Request-Id")
+		if requestID == "" {
+			requestID = newUUID()
+			if requestID != "" {
+				r.Header.Set("X-Request-Id", requestID)
+			}
+		}
+
+		proxyReq, err := http.NewRequest(http.MethodPost, cfg.InferenceBaseURL+"/v1/files/upload", r.Body)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{
+				"error": "failed to build request",
+			})
+			return
+		}
+		proxyReq.Header = r.Header.Clone()
+		if auth := r.Header.Get("Authorization"); auth != "" {
+			proxyReq.Header.Set("Authorization", auth)
+		}
+		if requestID != "" {
+			proxyReq.Header.Set("X-Request-Id", requestID)
+		}
+		proxyReq.ContentLength = r.ContentLength
 
 		resp, err := client.Do(proxyReq)
 		if err != nil {

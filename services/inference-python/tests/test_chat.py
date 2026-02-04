@@ -6,7 +6,7 @@ from app.main import app
 
 
 class StubClient(LLMClient):
-    def chat(self, query: str, session_id=None) -> LLMResult:
+    def chat(self, query: str, session_id=None, context=None) -> LLMResult:
         return LLMResult(answer=f"echo:{query}", model="ollama:stub")
 
 
@@ -32,12 +32,12 @@ def test_chat_contract():
 
 def test_chat_llm_error():
     class ErrorClient(LLMClient):
-        def chat(self, query: str, session_id=None) -> LLMResult:
+        def chat(self, query: str, session_id=None, context=None) -> LLMResult:
             raise LLMClientError(502, "Ollama unreachable")
 
     main.resolve_llm_client = lambda *_args, **_kwargs: ErrorClient()
     client = TestClient(app)
-    response = client.post("/v1/chat", json={"query": "hello"})
+    response = client.post("/v1/chat", json={"query": "hello", "use_rag": False})
     assert response.status_code == 502
     assert response.json()["detail"] == "Ollama unreachable"
     main.resolve_llm_client = ORIGINAL_RESOLVER

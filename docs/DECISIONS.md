@@ -15,3 +15,6 @@
   - Ollama (host): http://host.docker.internal:11434
   - OpenAI API: https://api.openai.com (default model: gpt-4o-mini)
   - Gemini API: https://generativelanguage.googleapis.com (default model: gemini-2.5-flash)
+  - Qdrant collection: knowledgeops_chunks
+  - Embeddings model (Ollama): nomic-embed-text
+  - Chunking defaults: size 200, overlap 40

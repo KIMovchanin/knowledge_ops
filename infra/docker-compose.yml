@@ -24,7 +24,11 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/healthz >/dev/null 2>&1 || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "if command -v wget >/dev/null 2>&1; then wget -qO- http://localhost:6333/healthz >/dev/null 2>&1; elif command -v curl >/dev/null 2>&1; then curl -fsS http://localhost:6333/healthz >/dev/null 2>&1; else exit 1; fi",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -43,10 +47,18 @@ services:
       GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      UPLOAD_DIR: ${UPLOAD_DIR:-/data/uploads}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-knowledgeops_chunks}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      CHUNK_SIZE: ${CHUNK_SIZE:-200}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-40}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
+    volumes:
+      - inference_uploads:/data/uploads
     healthcheck:
       test:
         [
@@ -63,6 +75,10 @@ services:
     profiles: ["mvp"]
     environment:
       INFERENCE_BASE_URL: ${INFERENCE_BASE_URL:-http://inference:8000}
+      INFERENCE_TIMEOUT_SECONDS: ${INFERENCE_TIMEOUT_SECONDS:-120}
+      SERVER_READ_TIMEOUT_SECONDS: ${SERVER_READ_TIMEOUT_SECONDS:-300}
+      SERVER_WRITE_TIMEOUT_SECONDS: ${SERVER_WRITE_TIMEOUT_SECONDS:-600}
+      SERVER_IDLE_TIMEOUT_SECONDS: ${SERVER_IDLE_TIMEOUT_SECONDS:-120}
       JWT_SECRET: ${JWT_SECRET:-}
       RATE_LIMIT_RPS: ${RATE_LIMIT_RPS:-5}
       PORT: ${PORT:-8080}
@@ -101,3 +117,4 @@ services:
 volumes:
   postgres_data:
   qdrant_data:
+  inference_uploads:

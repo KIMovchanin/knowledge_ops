@@ -3,13 +3,21 @@ KnowledgeOps MVP: Запуск и остановка
 1) Предварительно
 - Установлен Docker Desktop и он запущен.
 - Установлен Ollama и модель llama3.2:3b.
+- Для RAG нужен embeddings-модель: nomic-embed-text.
 
 2) Запуск (PowerShell)
 cd D:\JetBrains\PycharmProjects\KnowledgeOps
 Copy-Item .env.example .env
 ollama serve
+ollama pull nomic-embed-text
 
 docker compose -f infra/docker-compose.yml --profile mvp up -d --build
+
+Упрощенный запуск:
+.\run.ps1
+(скрипт попробует запустить Ollama и подтянуть модели автоматически)
+Или двойным кликом:
+run.cmd
 
 3) Проверка
 curl.exe http://localhost:8080/health
@@ -21,5 +29,20 @@ curl.exe -X POST http://localhost:8080/v1/chat -H "Content-Type: application/jso
 4) Остановка (сохранить данные)
 docker compose -f infra/docker-compose.yml --profile mvp stop
 
+Упрощенная остановка:
+.\stop.ps1
+Или двойным кликом:
+stop.cmd
+
+Перезапуск (стоп + старт):
+.\restart.ps1
+Или двойным кликом:
+restart.cmd
+
 5) Полная остановка и очистка (с удалением данных)
 docker compose -f infra/docker-compose.yml --profile mvp down -v
+
+Полная очистка:
+.\clean.ps1
+Или двойным кликом:
+clean.cmd

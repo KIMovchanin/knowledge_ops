@@ -16,6 +16,12 @@ class Settings:
     gemini_base_url: str
     gemini_model: str
     gemini_api_key: str
+    upload_dir: str
+    qdrant_url: str
+    qdrant_collection: str
+    embedding_model: str
+    chunk_size: int
+    chunk_overlap: int
 
 
 @lru_cache
@@ -32,4 +38,10 @@ def get_settings() -> Settings:
         ),
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
         gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
+        upload_dir=os.getenv("UPLOAD_DIR", "/data/uploads"),
+        qdrant_url=os.getenv("QDRANT_URL", "http://qdrant:6333"),
+        qdrant_collection=os.getenv("QDRANT_COLLECTION", "knowledgeops_chunks"),
+        embedding_model=os.getenv("EMBEDDING_MODEL", "nomic-embed-text"),
+        chunk_size=int(os.getenv("CHUNK_SIZE", "200")),
+        chunk_overlap=int(os.getenv("CHUNK_OVERLAP", "40")),
     )

@@ -210,6 +210,10 @@ h1 {
   background: #fff;
 }
 
+.field input[type="file"] {
+  padding: 8px;
+}
+
 .toggle {
   display: flex;
   align-items: center;
@@ -249,4 +253,21 @@ code {
   .chat {
     min-height: 420px;
   }
+}
+
+.status-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.github-link {
+  color: var(--accent-strong);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.github-link:hover {
+  text-decoration: underline;
 }

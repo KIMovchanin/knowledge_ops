@@ -20,7 +20,9 @@ class LLMClientError(Exception):
 
 
 class LLMClient:
-    def chat(self, query: str, session_id: Optional[str] = None) -> LLMResult:
+    def chat(
+        self, query: str, session_id: Optional[str] = None, context: Optional[str] = None
+    ) -> LLMResult:
         raise NotImplementedError
 
 
@@ -33,10 +35,32 @@ class OllamaClient(LLMClient):
             timeout=httpx.Timeout(timeout_seconds, connect=5.0),
         )
 
-    def chat(self, query: str, session_id: Optional[str] = None) -> LLMResult:
+    def chat(
+        self, query: str, session_id: Optional[str] = None, context: Optional[str] = None
+    ) -> LLMResult:
+        messages = []
+        if context:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a helpful assistant. Use the provided context to answer. "
+                        "If the context is insufficient, say you do not know."
+                    ),
+                }
+            )
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"Question: {query}\n\nContext:\n{context}",
+                }
+            )
+        else:
+            messages.append({"role": "user", "content": query})
+
         payload = {
             "model": self.model,
-            "messages": [{"role": "user", "content": query}],
+            "messages": messages,
             "stream": False,
         }
         try:
@@ -71,7 +95,9 @@ class APIClient(LLMClient):
     def __init__(self, model: str = "unknown") -> None:
         self.model = model
 
-    def chat(self, query: str, session_id: Optional[str] = None) -> LLMResult:
+    def chat(
+        self, query: str, session_id: Optional[str] = None, context: Optional[str] = None
+    ) -> LLMResult:
         raise NotImplementedError(
             "LLM_PROVIDER=api is not implemented in the MVP. "
             "Set LLM_PROVIDER=ollama to use the local Ollama runtime."
@@ -79,17 +105,41 @@ class APIClient(LLMClient):
 
 
 class OpenAIClient(LLMClient):
-    def __init__(self, base_url: str, model: str, api_key: str, timeout_seconds: float = 30.0) -> None:
+    def __init__(
+        self, base_url: str, model: str, api_key: str, timeout_seconds: float = 30.0
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.api_key = api_key.strip()
         self.timeout = httpx.Timeout(timeout_seconds, connect=5.0)
 
-    def chat(self, query: str, session_id: Optional[str] = None) -> LLMResult:
+    def chat(
+        self, query: str, session_id: Optional[str] = None, context: Optional[str] = None
+    ) -> LLMResult:
         if not self.api_key:
             raise LLMClientError(401, "OpenAI API key is required for provider openai.")
 
-        payload = {"model": self.model, "messages": [{"role": "user", "content": query}]}
+        messages = []
+        if context:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a helpful assistant. Use the provided context to answer. "
+                        "If the context is insufficient, say you do not know."
+                    ),
+                }
+            )
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"Question: {query}\n\nContext:\n{context}",
+                }
+            )
+        else:
+            messages.append({"role": "user", "content": query})
+
+        payload = {"model": self.model, "messages": messages}
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
         try:
@@ -118,21 +168,29 @@ class OpenAIClient(LLMClient):
 
 
 class GeminiClient(LLMClient):
-    def __init__(self, base_url: str, model: str, api_key: str, timeout_seconds: float = 30.0) -> None:
+    def __init__(
+        self, base_url: str, model: str, api_key: str, timeout_seconds: float = 30.0
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.api_key = api_key.strip()
         self.timeout = httpx.Timeout(timeout_seconds, connect=5.0)
 
-    def chat(self, query: str, session_id: Optional[str] = None) -> LLMResult:
+    def chat(
+        self, query: str, session_id: Optional[str] = None, context: Optional[str] = None
+    ) -> LLMResult:
         if not self.api_key:
             raise LLMClientError(401, "Gemini API key is required for provider gemini.")
+
+        prompt = query
+        if context:
+            prompt = f"Question: {query}\n\nContext:\n{context}"
 
         payload = {
             "contents": [
                 {
                     "role": "user",
-                    "parts": [{"text": query}],
+                    "parts": [{"text": prompt}],
                 }
             ]
         }

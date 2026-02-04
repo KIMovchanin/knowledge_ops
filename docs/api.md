@@ -14,6 +14,8 @@ curl -X POST http://localhost:8080/v1/chat \
   -d '{"query":"hello","use_rag":true,"top_k":5}'
 ```
 
+`use_rag=true` will retrieve top K chunks from uploaded files in Qdrant.
+
 ### Using OpenAI or Gemini
 
 ```bash
@@ -32,3 +34,10 @@ curl -X POST http://localhost:8080/v1/chat \
 
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
+
+## Upload files (prepare for RAG)
+
+```bash
+curl -X POST http://localhost:8080/v1/files/upload \
+  -F "files=@./notes/example.txt"
+```
