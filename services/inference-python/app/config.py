@@ -41,7 +41,7 @@ def get_settings() -> Settings:
         upload_dir=os.getenv("UPLOAD_DIR", "/data/uploads"),
         qdrant_url=os.getenv("QDRANT_URL", "http://qdrant:6333"),
         qdrant_collection=os.getenv("QDRANT_COLLECTION", "knowledgeops_chunks"),
-        embedding_model=os.getenv("EMBEDDING_MODEL", "nomic-embed-text"),
+        embedding_model=os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest"),
         chunk_size=int(os.getenv("CHUNK_SIZE", "200")),
         chunk_overlap=int(os.getenv("CHUNK_OVERLAP", "40")),
     )

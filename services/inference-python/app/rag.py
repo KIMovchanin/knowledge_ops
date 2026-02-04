@@ -53,7 +53,8 @@ def extract_text(path: Path) -> str:
 def embed_text(
     base_url: str, model: str, text: str, timeout_seconds: float = 30.0
 ) -> List[float]:
-    payload = {"model": model, "prompt": text}
+    resolved_model = model if ":" in model else f"{model}:latest"
+    payload = {"model": resolved_model, "prompt": text}
     try:
         response = httpx.post(
             f"{base_url.rstrip('/')}/api/embeddings",
